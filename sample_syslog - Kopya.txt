@@ -1,0 +1,10 @@
+Mar 10 08:32:01 kernel: [    0.000000] Linux version 5.15.0-generic (buildd@lcy02) 
+Mar 10 08:32:05 systemd[1]: Started Network Manager.
+Mar 10 08:33:10 sshd[1234]: Accepted publickey for user root from 192.168.1.15 port 54321 ssh2
+Mar 10 08:35:22 sudo:   bulut : TTY=pts/0 ; PWD=/home/bulut ; USER=root ; COMMAND=/usr/bin/apt update
+Mar 10 08:40:15 kernel: [  120.453211] usb 1-2: new high-speed USB device number 3 using xhci_hcd
+Mar 10 08:45:00 cron[890]: (root) CMD ( /usr/local/bin/backup.sh >/dev/null 2>&1)
+Mar 10 09:00:12 systemd[1]: Stopping User Manager for UID 1000...
+Mar 10 09:05:33 sshd[1567]: Failed password for invalid user admin from 10.0.0.5 port 3389 ssh2
+Mar 10 09:10:45 kernel: [ 3456.789012] Out of memory: Killed process 2048 (heavy_task) total-vm:4500000kB
+Mar 10 09:15:00 ufw: [UFW BLOCK] IN=eth0 OUT= MAC=00:11:22:33:44:55 SRC=192.168.1.100 DST=192.168.1.10
