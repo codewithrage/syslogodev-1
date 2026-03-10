@@ -2,82 +2,138 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_LOG_LENGTH 1024  // Maksimum log uzunlu�u
+#define MAX_LINE_LENGTH 1024
 
-// Syslog kay�tlar�n� tutan ba�l� liste d���m yap�s�
+/* * Düğüm (Node) Yapısı: Çift Yönlü Bağlı Liste Düğümü
+ * Neden Çift Yönlü? Logları hem baştan sona (tarih sırasıyla) hem de
+ * sondan başa (en güncelden en eskiye) okuyabilmek için.
+ */
 typedef struct SyslogNode {
-    char log[MAX_LOG_LENGTH];
-    struct SyslogNode* next;
+    char log_message[MAX_LINE_LENGTH]; // Log satırının tutulduğu metin değişkeni
+    struct SyslogNode* next;           // Bir sonraki log düğümünü gösteren işaretçi
+    struct SyslogNode* prev;           // Bir önceki log düğümünü gösteren işaretçi
 } SyslogNode;
 
-// Yeni bir syslog d���m� olu�turur
-SyslogNode* createNode(const char* log) {
+/* Bağlı listenin başını ve sonunu tutan global veya yerel işaretçiler */
+SyslogNode* head = NULL; // Listenin başı (En eski log)
+SyslogNode* tail = NULL; // Listenin sonu (En yeni log)
+
+/*
+ * Fonksiyon: create_node
+ * Amacı: Bellekte yeni bir log düğümü (node) için yer ayırmak.
+ */
+SyslogNode* create_node(const char* message) {
+    // Bellekten SyslogNode boyutu kadar dinamik alan ayırıyoruz
     SyslogNode* newNode = (SyslogNode*)malloc(sizeof(SyslogNode));
-    if (!newNode) {
-        perror("Bellek tahsisi basarisiz!");
-        exit(EXIT_FAILURE);
+    if (newNode == NULL) {
+        printf("Hata: Bellek tahsisi basarisiz oldu!\n");
+        exit(1);
     }
-    strncpy(newNode->log, log, MAX_LOG_LENGTH);
-    newNode->log[MAX_LOG_LENGTH - 1] = '\0';  // Guvenlik icin null karakter ekle
+
+    // Mesajı düğümün içindeki değişkene kopyalıyoruz
+    strncpy(newNode->log_message, message, MAX_LINE_LENGTH);
+    newNode->log_message[MAX_LINE_LENGTH - 1] = '\0'; // Güvenlik için null terminator
+
     newNode->next = NULL;
+    newNode->prev = NULL;
+
     return newNode;
 }
 
-// Ba�l� listeye yeni syslog kayd� ekler
-void addLog(SyslogNode** head, const char* log) {
-    SyslogNode* newNode = createNode(log);
-    newNode->next = *head;
-    *head = newNode;
-}
+/*
+ * Fonksiyon: append_log
+ * Amacı: Yeni okunan log satırını çift yönlü bağlı listenin SONUNA eklemek.
+ * Sistemin doğası gereği yeni loglar her zaman dosyanın sonuna yazılır.
+ */
+void append_log(const char* message) {
+    SyslogNode* newNode = create_node(message);
 
-// Ba�l� listedeki t�m syslog kay�tlar�n� ekrana yazd�r�r
-void printLogs(SyslogNode* head) {
-    SyslogNode* temp = head;
-    while (temp) {
-        printf("%s\n", temp->log);
-        temp = temp->next;
+    // Eğer liste boşsa, baş ve son bu yeni düğüm olur
+    if (head == NULL) {
+        head = newNode;
+        tail = newNode;
+    } else {
+        // Liste boş değilse, kuyruğun (tail) sonuna ekle
+        tail->next = newNode;
+        newNode->prev = tail; // Yeni düğümün öncesi, eski kuyruk olur
+        tail = newNode;       // Kuyruk artık yeni düğümdür
     }
 }
 
-// Ba�l� listeyi temizler (bellek y�netimi)
-void freeList(SyslogNode* head) {
-    SyslogNode* temp;
-    while (head) {
-        temp = head;
-        head = head->next;
-        free(temp);
-    }
-}
-
-// Syslog dosyas�n� okuyarak ba�l� listeye ekler
-void readSyslog(SyslogNode** head, const char* filename) {
+/*
+ * Fonksiyon: load_syslog_to_list
+ * Amacı: Belirtilen dosya yolundaki logları okuyup satır satır bağlı listeye aktarmak.
+ */
+void load_syslog_to_list(const char* filename) {
     FILE* file = fopen(filename, "r");
-    if (!file) {
-        perror("Syslog dosyasi acilamadi!");
+    if (file == NULL) {
+        printf("Hata: %s dosyasi acilamadi. Lutfen dosya yolunu kontrol edin.\n", filename);
         return;
     }
 
-    char buffer[MAX_LOG_LENGTH];
-    while (fgets(buffer, MAX_LOG_LENGTH, file)) {
-        buffer[strcspn(buffer, "\n")] = 0;  // Yeni satir karakterini temizle
-        addLog(head, buffer);
+    char buffer[MAX_LINE_LENGTH];
+    // Dosyadan satır satır okuma işlemi
+    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+        // Okunan satırın sonundaki yeni satır (\n) karakterini temizleme
+        buffer[strcspn(buffer, "\n")] = 0;
+        append_log(buffer); // Satırı bağlı listeye ekle
     }
 
     fclose(file);
+    printf("Bilgi: %s basariyla okunup bagli listeye aktarildi.\n\n", filename);
+}
+
+/*
+ * Fonksiyon: print_logs_reverse
+ * Amacı: Logları sondan başa doğru (En güncelden eskiye) ekrana yazdırmak.
+ * İşte bu fonksiyon, Çift Yönlü Bağlı Liste kullanmamızın en temel nedenidir.
+ */
+void print_logs_reverse() {
+    SyslogNode* current = tail;
+    printf("--- GUNCEL LOGLAR (Sondan Basa Dogru) ---\n");
+    int count = 0;
+
+    // Sadece son 5 logu göstermek için basit bir sayaç (Demo amaçlı)
+    while (current != NULL && count < 5) {
+        printf("[%d] %s\n", count+1, current->log_message);
+        current = current->prev; // Bir önceki düğüme geç (Geriye git)
+        count++;
+    }
+    printf("-----------------------------------------\n");
+}
+
+/*
+ * Fonksiyon: free_linked_list
+ * Amacı: Program kapanırken bellek sızıntısını (memory leak) önlemek için
+ * malloc ile ayırdığımız tüm düğümleri temizlemek.
+ */
+void free_linked_list() {
+    SyslogNode* current = head;
+    SyslogNode* temp;
+
+    while (current != NULL) {
+        temp = current;
+        current = current->next;
+        free(temp); // Belleği serbest bırak
+    }
 }
 
 int main() {
-    SyslogNode* syslogList = NULL;
+    /* * Windows veya farklı sistemlerde denerken hata almamak için
+     * gercekte "/var/log/syslog" olan yolu "sample_syslog.txt" olarak belirliyoruz.
+     * Veya Linux ortamındaysanız burayı "/var/log/syslog" yapabilirsiniz.
+     */
+    const char* log_file_path = "sample_syslog.txt";
 
-    // Syslog dosyasini okuyarak bagli listeye ekleme
-    readSyslog(&syslogList, "/var/log/syslog");
+    printf("Sistem Gunlukleri Bagli Listeye Yukleniyor...\n");
+    load_syslog_to_list(log_file_path);
 
-    // Syslog kayitlarini ekrana yazdir
-    printf("Syslog Kayitlari:\n");
-    printLogs(syslogList);
+    if(head != NULL) {
+        // Çift yönlü listenin avantajını gösteren fonksiyonu çağır
+        print_logs_reverse();
+    }
 
-    // Belle�i temizleme
-    freeList(syslogList);
-
+    // Belleği temizle ve çık
+    free_linked_list();
     return 0;
 }
